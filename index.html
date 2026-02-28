@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Volleyball Scoreboard</title>
+  <style>
+    :root{
+      --blue:#0b5bd3;
+      --red:#d11b2a;
+      --white:#ffffff;
+      --glass: rgba(0,0,0,0.22);
+      --glass2: rgba(0,0,0,0.45);
+      --stroke: rgba(255,255,255,0.16);
+      --btn: rgba(255,255,255,0.14);
+      --btnHover: rgba(255,255,255,0.22);
+    }
+    *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+    html,body{ height:100%; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#000; color:#fff; overflow:hidden; }
+    button, input { font: inherit; }
+
+    /* Setup screen */
+    #setup {
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      padding:24px;
+      background: radial-gradient(1200px 800px at 30% 20%, rgba(11,91,211,0.35), transparent 60%),
+                  radial-gradient(1200px 800px at 70% 80%, rgba(209,27,42,0.35), transparent 60%),
+                  #070707;
+    }
+    .card{
+      width:min(760px, 96vw);
+      background: rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.12);
+      border-radius:18px;
+      padding:22px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .card h1{ margin:0 0 10px 0; font-size: clamp(20px, 3vw, 28px); }
+    .meta{ margin-top:10px; opacity:0.9; font-size:13px; display:flex; gap:10px; flex-wrap:wrap; }
+    .row{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-top:14px; }
+    .field{
+      background: rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.12);
+      border-radius:14px;
+      padding:12px;
+    }
+    .field label{ display:block; font-size:12px; opacity:0.85; margin-bottom:6px; }
+    .field input{
+      width:100%;
+      border:0; outline:none;
+      background:transparent;
+      color:#fff;
+      font-size:16px;
+      padding:6px 4px;
+    }
+    .startRow{ display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; justify-content:flex-end; }
+    .primary{
+      border:0;
+      background: linear-gradient(90deg, rgba(11,91,211,0.9), rgba(209,27,42,0.9));
+      color:#fff;
+      padding:12px 16px;
+      border-radius:14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .secondary{
+      border:1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.06);
+      color:#fff;
+      padding:12px 16px;
+      border-radius:14px;
+      font-weight:750;
+      cursor:pointer;
+    }
+    .primary:active, .secondary:active{ transform: translateY(1px); }
+
+    /* Scoreboard */
+    #board{
+      position:fixed; inset:0;
+      display:none;
+      user-select:none;
+      touch-action: none; /* we'll handle touch gestures ourselves */
+    }
+
+    .side{
+      position:absolute; top:0; bottom:0; width:50%;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      padding: max(18px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));
+    }
+    #left{ left:0; background: var(--blue); }
+    #right{ right:0; background: var(--red); }
+
+    /* Header pill (name + sets) */
+    .headerPill{
+      position:absolute; top: 12px;
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+      text-align:center;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: var(--glass);
+      border: 1px solid var(--stroke);
+      backdrop-filter: blur(8px);
+      max-width: 44vw;
+    }
+    .teamName{
+      font-size: clamp(14px, 2.2vw, 22px);
+      font-weight: 850;
+      letter-spacing: 0.2px;
+      line-height: 1.1;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      color: var(--white);
+    }
+    .setsWon{
+      font-size: clamp(11px, 1.5vw, 14px);
+      font-weight: 750;
+      opacity: 0.92;
+    }
+
+    /* Massive score */
+    .score{
+      font-size: clamp(108px, 24vw, 340px);
+      font-weight: 950;
+      line-height: 0.9;
+      color: var(--white);
+      text-shadow: 0 12px 34px rgba(0,0,0,0.25);
+    }
+
+    /* Bottom micro-controls */
+    #microControls{
+      position:fixed;
+      left: 12px; right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      display:flex;
+      justify-content:center;
+      pointer-events:none;
+    }
+    .microPill{
+      pointer-events:auto;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      padding:10px 12px;
+      border-radius:999px;
+      background: var(--glass2);
+      border:1px solid var(--stroke);
+      backdrop-filter: blur(10px);
+    }
+    .btn{
+      border:1px solid rgba(255,255,255,0.18);
+      background: var(--btn);
+      color:#fff;
+      padding:8px 12px;
+      border-radius:999px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btn:hover{ background: var(--btnHover); }
+    .btn:active{ transform: translateY(1px); }
+    #statusText{
+      font-weight:800;
+      opacity:0.95;
+      font-size:13px;
+      max-width: 52vw;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    /* Tiny feedback for swipe-down subtract */
+    .toast{
+      position:fixed;
+      left:50%;
+      transform: translateX(-50%);
+      top: calc(16px + env(safe-area-inset-top));
+      padding:10px 12px;
+      border-radius:999px;
+      background: rgba(0,0,0,0.55);
+      border:1px solid rgba(255,255,255,0.18);
+      backdrop-filter: blur(10px);
+      font-weight:850;
+      opacity:0;
+      pointer-events:none;
+      transition: opacity 160ms ease;
+    }
+    .toast.show{ opacity:1; }
+
+    /* Winner flash */
+    .winnerFlash{
+      animation: flash 900ms ease-in-out 2;
+    }
+    @keyframes flash{
+      0%,100%{ filter: brightness(1); }
+      50%{ filter: brightness(1.35); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Setup -->
+  <div id="setup">
+    <div class="card">
+      <h1>Volleyball Scoreboard</h1>
+      <div class="meta">
+        <div>• Tap blue/red side: +1</div>
+        <div>• Swipe down on a side: −1</div>
+        <div>• Games to 25 • Best of 7 (first to 4)</div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>Blue team name</label>
+          <input id="teamA" value="Blue" maxlength="24" />
+        </div>
+        <div class="field">
+          <label>Red team name</label>
+          <input id="teamB" value="Red" maxlength="24" />
+        </div>
+      </div>
+
+      <div class="startRow">
+        <button class="secondary" id="demoBtn" type="button">Demo names</button>
+        <button class="primary" id="startBtn" type="button">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Board -->
+  <div id="board" aria-label="Scoreboard">
+    <div class="side" id="left" aria-label="Blue side">
+      <div class="headerPill">
+        <div class="teamName" id="nameLeft">Blue</div>
+        <div class="setsWon" id="setsLeft">Sets 0</div>
+      </div>
+      <div class="score" id="scoreLeft">0</div>
+    </div>
+
+    <div class="side" id="right" aria-label="Red side">
+      <div class="headerPill">
+        <div class="teamName" id="nameRight">Red</div>
+        <div class="setsWon" id="setsRight">Sets 0</div>
+      </div>
+      <div class="score" id="scoreRight">0</div>
+    </div>
+
+    <div id="microControls">
+      <div class="microPill" id="microPill">
+        <button class="btn" id="swapBtn" type="button">Swap</button>
+        <button class="btn" id="resetBtn" type="button">Reset</button>
+        <button class="btn" id="fsBtn" type="button">Full</button>
+        <div id="statusText">Set 1 • First to 25 (win by 2)</div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast">−1</div>
+  </div>
+
+<script>
+(() => {
+  // --- Config ---
+  const POINTS_TO_WIN = 25;
+  const BEST_OF_SETS = 7;             // best of 7 => first to 4
+  const SETS_TO_WIN = Math.floor(BEST_OF_SETS / 2) + 1;
+  const WIN_BY_2 = true;
+
+  // Gesture thresholds
+  const SWIPE_DOWN_PX = 70;           // how far to swipe down to subtract
+  const TAP_MAX_MOVE_PX = 10;         // finger jitter tolerance
+
+  // --- State ---
+  let state = {
+    setNumber: 1,
+    left:  { name: "Blue", score: 0, sets: 0 },
+    right: { name: "Red",  score: 0, sets: 0 },
+    locked: false
+  };
+
+  // --- Elements ---
+  const setup = document.getElementById("setup");
+  const board = document.getElementById("board");
+  const teamA = document.getElementById("teamA");
+  const teamB = document.getElementById("teamB");
+
+  const leftSide = document.getElementById("left");
+  const rightSide = document.getElementById("right");
+
+  const nameLeft = document.getElementById("nameLeft");
+  const nameRight = document.getElementById("nameRight");
+  const setsLeft = document.getElementById("setsLeft");
+  const setsRight = document.getElementById("setsRight");
+  const scoreLeft = document.getElementById("scoreLeft");
+  const scoreRight = document.getElementById("scoreRight");
+  const statusText = document.getElementById("statusText");
+
+  const startBtn = document.getElementById("startBtn");
+  const demoBtn = document.getElementById("demoBtn");
+  const swapBtn = document.getElementById("swapBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const fsBtn = document.getElementById("fsBtn");
+
+  const microPill = document.getElementById("microPill");
+  const toast = document.getElementById("toast");
+
+  let toastTimer = null;
+  function showToast(text){
+    toast.textContent = text;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), 550);
+  }
+
+  // --- Helpers ---
+  function updateUI() {
+    nameLeft.textContent = state.left.name || "Blue";
+    nameRight.textContent = state.right.name || "Red";
+
+    setsLeft.textContent = `Sets ${state.left.sets}`;
+    setsRight.textContent = `Sets ${state.right.sets}`;
+
+    scoreLeft.textContent = state.left.score;
+    scoreRight.textContent = state.right.score;
+
+    const winRule = WIN_BY_2 ? "win by 2" : "no win-by-2";
+    if (!state.locked) {
+      statusText.textContent = `Set ${state.setNumber} • First to ${POINTS_TO_WIN} (${winRule})`;
+    } else {
+      const winner = state.left.sets > state.right.sets ? state.left.name : state.right.name;
+      statusText.textContent = `MATCH OVER • Winner: ${winner}`;
+    }
+  }
+
+  function canWinSet(a, b) {
+    if (a < POINTS_TO_WIN) return false;
+    if (!WIN_BY_2) return true;
+    return (a - b) >= 2;
+  }
+
+  function flashWinner(el) {
+    el.classList.remove("winnerFlash");
+    void el.offsetWidth;
+    el.classList.add("winnerFlash");
+  }
+
+  function lockMatch() {
+    state.locked = true;
+    updateUI();
+  }
+
+  function startNextSet() {
+    if (state.locked) return;
+    state.setNumber += 1;
+    state.left.score = 0;
+    state.right.score = 0;
+    updateUI();
+  }
+
+  function checkSetOrMatchWin() {
+    if (state.locked) return;
+
+    const L = state.left.score, R = state.right.score;
+
+    if (canWinSet(L, R)) {
+      state.left.sets += 1;
+      flashWinner(leftSide);
+      onSetWon();
+      return;
+    }
+    if (canWinSet(R, L)) {
+      state.right.sets += 1;
+      flashWinner(rightSide);
+      onSetWon();
+      return;
+    }
+  }
+
+  function onSetWon() {
+    updateUI();
+
+    // Match over?
+    if (state.left.sets >= SETS_TO_WIN || state.right.sets >= SETS_TO_WIN) {
+      lockMatch();
+      return;
+    }
+
+    // Auto-next set after a beat (keeps it “hands off”)
+    setTimeout(startNextSet, 650);
+  }
+
+  function addPoint(side) {
+    if (state.locked) return;
+
+    if (side === "left") state.left.score += 1;
+    else state.right.score += 1;
+
+    updateUI();
+    checkSetOrMatchWin();
+  }
+
+  function subPoint(side) {
+    if (side === "left") state.left.score = Math.max(0, state.left.score - 1);
+    else state.right.score = Math.max(0, state.right.score - 1);
+
+    updateUI();
+  }
+
+  function resetMatch() {
+    state.setNumber = 1;
+    state.left.score = 0; state.right.score = 0;
+    state.left.sets = 0;  state.right.sets = 0;
+    state.locked = false;
+    updateUI();
+  }
+
+  function swapSides() {
+    const tmp = state.left;
+    state.left = state.right;
+    state.right = tmp;
+    updateUI();
+  }
+
+  async function toggleFullscreen() {
+    try{
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch(e) { /* ignore */ }
+  }
+
+  function startGame() {
+    state.left.name = (teamA.value || "Blue").trim().slice(0,24);
+    state.right.name = (teamB.value || "Red").trim().slice(0,24);
+
+    setup.style.display = "none";
+    board.style.display = "block";
+    updateUI();
+  }
+
+  // --- Tap / Swipe handling (per side) ---
+  function bindGestures(el, sideName) {
+    let startY = 0, startX = 0;
+    let moved = false;
+    let swiped = false;
+
+    // Pointer events cover mouse + touch + pen
+    el.addEventListener("pointerdown", (e) => {
+      // Ignore if starting on the micro-controls pill (buttons/status)
+      if (e.target.closest("#microPill")) return;
+
+      el.setPointerCapture(e.pointerId);
+      startX = e.clientX;
+      startY = e.clientY;
+      moved = false;
+      swiped = false;
+    });
+
+    el.addEventListener("pointermove", (e) => {
+      if (e.target.closest("#microPill")) return;
+
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      if (Math.abs(dx) > TAP_MAX_MOVE_PX || Math.abs(dy) > TAP_MAX_MOVE_PX) moved = true;
+
+      // Swipe down to subtract (trigger once)
+      if (!swiped && dy > SWIPE_DOWN_PX && Math.abs(dx) < 80) {
+        swiped = true;
+        subPoint(sideName);
+        showToast("−1");
+      }
+    });
+
+    el.addEventListener("pointerup", (e) => {
+      if (e.target.closest("#microPill")) return;
+
+      // If it wasn't a swipe-down, treat as tap to add
+      if (!swiped) {
+        addPoint(sideName);
+      }
+    });
+
+    el.addEventListener("pointercancel", () => {});
+  }
+
+  // --- Events ---
+  startBtn.addEventListener("click", startGame);
+  demoBtn.addEventListener("click", () => { teamA.value="Home"; teamB.value="Visitors"; });
+
+  // Stop pill from “tapping to score”
+  microPill.addEventListener("pointerdown", (e) => e.stopPropagation());
+  microPill.addEventListener("pointerup", (e) => e.stopPropagation());
+  microPill.addEventListener("click", (e) => e.stopPropagation());
+
+  swapBtn.addEventListener("click", (e) => { e.stopPropagation(); swapSides(); });
+  resetBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (confirm("Reset match scores and sets?")) resetMatch();
+  });
+  fsBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleFullscreen(); });
+
+  // Keyboard shortcuts (optional)
+  window.addEventListener("keydown", (e) => {
+    if (setup.style.display !== "none") return;
+    if (e.key === "ArrowLeft" || e.key === "a") addPoint("left");
+    if (e.key === "ArrowRight" || e.key === "l") addPoint("right");
+    if (e.key === "ArrowDown") { subPoint("left"); subPoint("right"); }
+    if (e.key === "f") toggleFullscreen();
+    if (e.key === "r") resetMatch();
+    if (e.key === "s") swapSides();
+  });
+
+  bindGestures(leftSide, "left");
+  bindGestures(rightSide, "right");
+})();
+</script>
+</body>
+</html>
