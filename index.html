@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <!-- Updated viewport to reduce iOS zoom behavior -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Volleyball Scoreboard</title>
@@ -18,7 +19,36 @@
       --btnHover: rgba(255,255,255,0.22);
     }
     *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
-    html,body{ height:100%; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#000; color:#fff; overflow:hidden; }
+
+    /* ---- iOS zoom/selection prevention ---- */
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:#000;
+      color:#fff;
+      overflow:hidden;
+
+      touch-action:none;
+      -ms-touch-action:none;
+      overscroll-behavior:none;
+
+      -webkit-user-select:none;
+      user-select:none;
+      -webkit-touch-callout:none;
+    }
+    #board, .side{
+      touch-action:none;
+      -webkit-user-select:none;
+      user-select:none;
+      -webkit-touch-callout:none;
+    }
+    .score, .teamName, .setsWon{
+      -webkit-user-select:none;
+      user-select:none;
+    }
+    /* ------------------------------------- */
+
     button, input { font: inherit; }
 
     /* Setup screen */
@@ -55,6 +85,8 @@
       color:#fff;
       font-size:16px;
       padding:6px 4px;
+      -webkit-user-select:text; /* allow typing/selecting inside inputs */
+      user-select:text;
     }
     .startRow{ display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; justify-content:flex-end; }
     .primary{
@@ -260,6 +292,26 @@
 
 <script>
 (() => {
+  /* --- iOS zoom prevention (double-tap + pinch) --- */
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (event) => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+
+  document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+
+  document.addEventListener('touchstart', (e) => {
+    // Block multi-touch (pinch) attempts
+    if (e.touches && e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+  /* ---------------------------------------------- */
+
   // --- Config ---
   const POINTS_TO_WIN = 25;
   const BEST_OF_SETS = 7;             // best of 7 => first to 4
@@ -385,7 +437,7 @@
       return;
     }
 
-    // Auto-next set after a beat (keeps it “hands off”)
+    // Auto-next set after a beat
     setTimeout(startNextSet, 650);
   }
 
@@ -440,18 +492,13 @@
   // --- Tap / Swipe handling (per side) ---
   function bindGestures(el, sideName) {
     let startY = 0, startX = 0;
-    let moved = false;
     let swiped = false;
 
-    // Pointer events cover mouse + touch + pen
     el.addEventListener("pointerdown", (e) => {
-      // Ignore if starting on the micro-controls pill (buttons/status)
       if (e.target.closest("#microPill")) return;
-
       el.setPointerCapture(e.pointerId);
       startX = e.clientX;
       startY = e.clientY;
-      moved = false;
       swiped = false;
     });
 
@@ -460,8 +507,6 @@
 
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-
-      if (Math.abs(dx) > TAP_MAX_MOVE_PX || Math.abs(dy) > TAP_MAX_MOVE_PX) moved = true;
 
       // Swipe down to subtract (trigger once)
       if (!swiped && dy > SWIPE_DOWN_PX && Math.abs(dx) < 80) {
@@ -473,14 +518,8 @@
 
     el.addEventListener("pointerup", (e) => {
       if (e.target.closest("#microPill")) return;
-
-      // If it wasn't a swipe-down, treat as tap to add
-      if (!swiped) {
-        addPoint(sideName);
-      }
+      if (!swiped) addPoint(sideName);
     });
-
-    el.addEventListener("pointercancel", () => {});
   }
 
   // --- Events ---
